@@ -12,7 +12,7 @@ Thanks for trying out Blitz! In this tutorial, we’ll walk you through the crea
 We’ll assume that you have [Blitz installed](./getting-started) already. You can tell if Blitz is installed, and which version you have by running the following command in your terminal:
 
 ```sh
-$ blitz -v
+blitz -v
 ```
 
 If Blitz is installed, you should see the version of your installation. If it isn’t, you’ll get an error saying something like “command not found: blitz”.
@@ -89,12 +89,12 @@ These files are:
 Let’s check that your Blitz project works. Make sure you are in the `mysite` directory, if you haven’t already, and run the following command:
 
 ```sh
-$ blitz start
+blitz start
 ```
 
 You’ll see the following output on the command line:
 
-```sh
+```
 ✔ Prepped for launch
 [ wait ]  starting the development server ...
 [ info ]  waiting on http://localhost:3000 ...
@@ -124,42 +124,82 @@ This is the simplest page possible in Blitz. To look at it, go back to your brow
 
 ## Database setup
 
-Now, we’ll setup the database and create your first model.
+By default, a Blitz app is created with a local SQLite database. If you’re new to databases, or you’re interested in trying Blitz, this is the easiest choice. Note that when starting your first real project, you may want to use a more scalable database like PostgreSQL, to avoid the pains of switching your database down the road. Your data source can be configured in the `db/schema.prisma` file, but for now we can simply move on to the next section.
 
-Open up `db/schema.prisma`. It’s a configuration file which our default database engine Prisma uses.
+## Generating content
 
-By default, the apps is created with SQLite. If you’re new to databases, or you’re interested in trying Blitz, this is the easiest choice. Note that when starting your first project, you may want to use a more scalable database like PostgreSQL, to avoid the pains of switching your database down the road.
+Blitz provides a handy command called [`generate`](./cli-generate) for scaffolding out boilerplate code. We'll use `generate` to create two models: `Question` and `Choice`. A `Question` has the text of the question and a list of choices. A `Choice` has the text of the choice, a vote count, and an associated question. Both models automatically come with an id, a creation timestamp, and a last updated timestamp. In addition to the database layout, passing the `all` type to the `generate` command will also generate the corresponding queries, mutations, and pages for these models!
 
-## Creating models
-
-Now we’ll define your models — essentially your database layout — with additional metadata.
-
-In `schema.prisma`, we’ll create two models: `Question`, and `Choice`. A `Question` has a question and a publication date. A `Choice` has two fields: the text of the choice and a vote count. Each has an id, and each `Choice` is associated with a `Question`.
-
-Edit the `schema.prisma` file so it includes this:
-
-```prisma
-
-model Question {
-  id          Int      @default(autoincrement()) @id
-  text        String
-  publishedAt DateTime
-  choices     Choice[]
-}
-
-model Choice {
-  id         Int      @default(autoincrement()) @id
-  text       String
-  votes      Int      @default(0)
-  question   Question @relation(fields: [questionId], references: [id])
-  questionId Int
-}
-```
-
-Now, we need to migrate our database. This is a way of telling it that you have edited your schema in some way. Run the below command. When it asks you to enter a migration name you can enter anything you want, perhaps "init db":
+First, we'll generate everything pertaining to the `Question` model:
 
 ```sh
-$ blitz db migrate
+blitz generate all question text hasMany:choices
+```
+
+```
+✔ Model for 'question' created successfully:
+
+> model Question {
+>   id        Int      @default(autoincrement()) @id
+>   createdAt DateTime @default(now())
+>   updatedAt DateTime @updatedAt
+>   text      String
+>   choices   Choice[]
+> }
+
+Now run blitz db migrate to add this model to your database
+
+CREATE    app/questions/pages/questions/index.tsx
+CREATE    app/questions/pages/questions/new.tsx
+CREATE    app/questions/pages/questions/[questionId]/edit.tsx
+CREATE    app/questions/pages/questions/[questionId].tsx
+CREATE    app/questions/components/QuestionForm.tsx
+CREATE    app/questions/queries/getQuestions.ts
+CREATE    app/questions/queries/getQuestion.ts
+CREATE    app/questions/mutations/createQuestion.ts
+CREATE    app/questions/mutations/deleteQuestion.ts
+CREATE    app/questions/mutations/updateQuestion.ts
+```
+
+Then, the `Choice` model:
+
+```sh
+blitz generate all choice text votes:int:default[0] belongsTo:question
+```
+
+```
+✔ Model for 'choice' created successfully:
+
+> model Choice {
+>   id         Int      @default(autoincrement()) @id
+>   createdAt  DateTime @default(now())
+>   updatedAt  DateTime @updatedAt
+>   text       String
+>   vote       Int      @default(0)
+>   question   Question @relation(fields: [questionId], references: [id])
+>   questionId Int
+> }
+
+Now run blitz db migrate to add this model to your database
+
+CREATE    app/choices/pages/choices/index.tsx
+CREATE    app/choices/pages/choices/new.tsx
+CREATE    app/choices/pages/choices/[choiceId]/edit.tsx
+CREATE    app/choices/pages/choices/[choiceId].tsx
+CREATE    app/choices/components/ChoiceForm.tsx
+CREATE    app/choices/queries/getChoices.ts
+CREATE    app/choices/queries/getChoice.ts
+CREATE    app/choices/mutations/createChoice.ts
+CREATE    app/choices/mutations/deleteChoice.ts
+CREATE    app/choices/mutations/updateChoice.ts
+```
+
+> Note: you can also edit the `db/schema.prisma` file directly if needed, either instead of using `generate` or afterwards if further modifications are needed.
+
+Now, we need to migrate our database. This is a way of telling it that you have edited your schema in some way. Run the below command. When it asks you to enter a migration name, you can enter anything you want (perhaps "init db"):
+
+```sh
+blitz db migrate
 ```
 
 ## Playing with the API
@@ -167,60 +207,64 @@ $ blitz db migrate
 Now, let’s hop into the interactive Blitz shell and play around with the free API Blitz gives you. To invoke the Blitz console, use this command:
 
 ```sh
-$ blitz console
+blitz console
 ```
 
 Once you’re in the console, explore the Database API:
 
-[//]: # "Let’s move this to await when it’s available for all */"
-
 ```sh
 # No questions are in the system yet.
-⚡ > db.question.findMany().then(console.log)
+⚡ > await db.question.findMany()
 []
 
-# Create a new Question.
-⚡ > let q
+# Create a new Question:
+⚡ > let q = await db.question.create({data: {text: "What's new?"}})
 undefined
 
-⚡ > db.question.create({data: {text: 'What’s new?', publishedAt: new Date()}}).then(res => q = res)
-Promise { <pending> }
-
-# See the entire object
+# See the entire object:
 ⚡ > q
-{ id: 1, text: "What’s new?", publishedAt: 2020-04-24T22:08:17.307Z }
+{
+  id: 1,
+  createdAt: 2020-06-15T15:06:14.959Z,
+  updatedAt: 2020-06-15T15:06:14.959Z,
+  text: "What's new?"
+}
 
-# Or access individual values on the object.
+# Or, access individual values on the object:
 ⚡ > q.text
-"What’s new?"
+"What's new?"
 
-⚡ > q.publishedAt
-2020-04-24T22:08:17.307Z
+⚡ > q.createdAt
+2020-06-15T15:06:14.959Z
 
-# Change values by using the update function
-⚡ > db.question.update({where: {id: 1}, data: {text: 'What’s up?'}}).then(res => q = res)
-Promise { <pending> }
+# Change values by using the update function:
+⚡ > q = await db.question.update({where: {id: 1}, data: {text: "What's up?"}})
+{
+  id: 1,
+  createdAt: 2020-06-15T15:06:14.959Z,
+  updatedAt: 2020-06-15T15:13:17.394Z,
+  text: "What's up?"
+}
 
-# See the result
-⚡ > q
-{ id: 1, text: 'What’s up?', publishedAt: 2020-04-24T22:08:17.307Z }
-
-# db.question.findMany() displays all the questions in the database.
-⚡ > db.question.findMany().then(console.log)
+# db.question.findMany() now displays all the questions in the database:
+⚡ > await db.question.findMany()
 [
-  { id: 1, text: 'What’s up?', publishedAt: 2020-04-24T22:08:17.307Z }
+  {
+    id: 1,
+    createdAt: 2020-06-15T15:06:14.959Z,
+    updatedAt: 2020-06-15T15:13:17.394Z,
+    text: "What's up?"
+  }
 ]
 ```
 
-## Writing more pages
+## Fixing generated pages
 
-Let’s create some more pages. Blitz provides a handy utility for scaffolding out pages, called `generate`. Let’s run it now with our `Question` model:
+[//]: # "Remove this section once `generate` uses actual model attributes"
 
-```sh
-$ blitz generate all question
-```
+> Note: ultimately, this section will not be needed as the generated code will use actual model attributes. Coming soon!
 
-Great! Before running the app again, we need to customise some of these pages which have been generated. Open your text editor and look at `app/questions/pages/questions/index.tsx`. Notice that a `QuestionsList` component has been generated for you:
+Before running the app again, we need to customize some of these pages which have been generated. Open your text editor and look at `app/questions/pages/questions/index.tsx`. Notice that a `QuestionsList` component has been generated for you:
 
 ```jsx
 export const QuestionsList = () => {
@@ -269,9 +313,7 @@ const question = await createQuestion({data: {name: "MyName"}})
 with
 
 ```jsx
-const question = await createQuestion({
-  data: {text: "Do you love Blitz?", publishedAt: new Date()},
-})
+const question = await createQuestion({data: {text: "Do you love Blitz?"}})
 ```
 
 Finally, we need to fix the edit page. Open `app/questions/pages/questions/[questionId]/edit.tsx` and replace
@@ -335,7 +377,6 @@ const NewQuestionPage = () => {
               const question = await createQuestion({
                 data: {
                   text: event.target[0].value,
-                  publishedAt: new Date(),
                   choices: {
                     create: [
                       {text: event.target[1].value},
@@ -375,7 +416,7 @@ export default NewQuestionPage
 
 ## Listing choices
 
-Time for a breather. Go back to `http://localhost:3000/questions` in your browser and look at all the questions you‘ve created. How about we list these questions’ choices here too? First, we need to customise the question queries. In Prisma, you need to manually let the client know that you want to query for nested relations. Change your `getQuestion.ts` and `getQuestions.ts` files to look like this:
+Time for a breather. Go back to `http://localhost:3000/questions` in your browser and look at all the questions you‘ve created. How about we list these questions’ choices here too? First, we need to customize the question queries. In Prisma, you need to manually let the client know that you want to query for nested relations. Change your `getQuestion.ts` and `getQuestions.ts` files to look like this:
 
 ```js
 // app/questions/queries/getQuestion.ts
